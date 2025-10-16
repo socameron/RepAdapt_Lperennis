@@ -1972,241 +1972,29 @@ printshellcmds: true
 rerun-incomplete: true
 rerun-trigger: mtime
 restart-times: 0
+
 set-resources:
-  aggregate_excess_heterozygotes_histograms_canonical:
-    mem_mb: 6900
-  angsd_HWE_by_population_on_CDS_SNPs:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_HWE_by_population_on_control_SNPs:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_HWE_by_population_on_dupHMM_SNPs:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_SFS_by_population_on_CDS_sites:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_SFS_by_population_on_all_sites:
-    mem_mb: 34400
-    threads: 12
-    time: 1920
-  angsd_SFS_control_by_population_on_all_sites:
-    mem_mb: 34400
-    threads: 12
-    time: 1920
-  angsd_for_EMU:
-    mem_mb: 153000
-    threads: 16
-    time: 10000
-  angsd_for_currentNe2:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_DFE_4fold:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_DFE_CDS:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_GONE:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_PCAngsd:
-    mem_mb: 128000
-    threads: 12
-    time: 3000
-  angsd_for_bcftools_roh:
-    mem_mb: 6900
-    threads: 4
-    time: 240
-  angsd_for_ngsF:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_ngsLD:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_for_ngsRelate:
-    mem_mb: 34400
-    threads: 12
-    time: 1440
-  angsd_for_NeEstimator:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_phylotree:
-    mem_mb: 128000
-    threads: 12
-    time: 1080
-  angsd_for_thetas:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_for_RZooROH:
-    mem_mb: 34400
-    threads: 12
-    time: 1080
-  angsd_raw_SNP:
-    mem_mb: 34400
-    threads: 12
-    time: 2820
-  angsd_raw_sites_all_poplns:
-    mem_mb: 103500
-    threads: 12
-    time: 1439
-  angsd_raw_sites_by_popln:
-    mem_mb: 13800
-    threads: 12
-    time: 540
-  bcftools_annotate_vcf:
-    mem_mb: 6900
-    threads: 4
-    time: 240
-  bcftools_roh_across_samples:
-    mem_mb: 34400
-    threads: 24
-    time: 240
-  bcftools_roh_single_sample:
-    mem_mb: 34400
-    threads: 24
-    time: 240
-  bcftools_snp_call_by_population:
+  bcftools_snp_call_by_scaffold:
     mem_mb: 34400
     threads: 24
     time: 900
-  bcftools_snp_call_canonical_by_population:
-    mem_mb: 34400
-    threads: 24
-    time: 2160
   clip_overlapping_reads:
     mem_mb: 13800
     threads: 4
     time: 420
-  convert_raw_sites_scaffold:
-    mem_mb: 68800
-    threads: 4
-    time: 420
-  convert_bcf_to_vcf:
-    mem_mb: 13800
-    threads: 2
-    time: 360
-  convert_bcf_to_vcf_currentNe2:
-    mem_mb: 13800
-    threads: 2
-    time: 360
-  convert_vcf_GP_to_GT:
-    mem_mb: 13800
-    threads: 2
-    time: 360
-  convert_vcf_GP_to_GT_currentNe2:
-    mem_mb: 13800
-    threads: 2
-    time: 360
-  convert_vcf_to_genepop:
-    mem_mb: 34400
-    threads: 2
-    time: 180
-  combine_raw_sites_scaffolds:
-    mem_mb: 68800
-    threads: 4
-    time: 420
-  combine_GLs_all_popln_scaffolds:
-    mem_mb: 150000
-    threads: 4
-    time: 900
-  combine_mafs_all_popln_scaffolds:
-    mem_mb: 72000
-    threads: 4
-    time: 300
-  combine_GLs_phylo_all_popln_scaffolds:
-    mem_mb: 150000
-    threads: 4
-    time: 900
-  combine_mafs_phylo_all_popln_scaffolds:
-    mem_mb: 72000
-    threads: 4
-    time: 300
   combine_depth_RepAdapt:
     mem_mb: 38000
     time: 720
-  currentne2_estK:
+  concat_scaffold_vcfs:
     mem_mb: 13800
     threads: 4
-    time: 240
-  currentne2_k:
-    mem_mb: 13800
-    threads: 4
-    time: 240
-  currentne2_x:
-    mem_mb: 13800
-    threads: 4
-    time: 240
-  dupHMM_run_hap1:
-    mem_mb: 13800
-    threads: 2
-    time: 1440
-  dupHMM_run_hap2:
-    mem_mb: 13800
-    threads: 2
-    time: 1440
-  dupHMM_setup:
-    mem_mb: 9200
-    time: 180
-  estimate_average_coverage_per_population:
-    mem_mb: 13800
-    threads: 4
-    time: 540
-  estimate_coverage_per_population_and_scaffold_hap1:
-    mem_mb: 9200
-    threads: 4
-    time: 540
-  estimate_coverage_per_population_and_scaffold_hap2:
-    mem_mb: 9200
-    threads: 4
-    time: 540
-  estimate_depth_hap1:
-    mem_mb: 23000
-    threads: 4
-    time: 2880
-  estimate_depth_hap2:
-    mem_mb: 23000
-    threads: 4
-    time: 2880
-  estimate_depth_round_1_per_scaffold:
-    mem_mb: 23000
-    threads: 4
-    time: 2880
-  estimate_depth_round_2_per_scaffold:
-    mem_mb: 23000
-    threads: 4
-    time: 2880
+    time: 600
   estimate_depth_RepAdapt:
     mem_mb: 9200
     time: 300
   estimate_depth_RepAdapt_stats:
     mem_mb: 5000
     time: 300
-  estimate_fst_stats:
-    mem_mb: 13800
-    threads: 4
-    time: 120
-  estimate_theta_by_site:
-    mem_mb: 13800
-    threads: 4
-    time: 360
-  estimate_theta_sliding_window:
-    mem_mb: 13800
-    threads: 4
-    time: 360
   fastqc:
     mem_mb: 6900
     threads: 2
@@ -2215,124 +2003,10 @@ set-resources:
     mem_mb: 6900
     threads: 2
     time: 180
-  filter_all_sites_all_populations_calcLR:
-    mem_mb: 13800
-    time: 2160
-  filter_all_sites_all_populations_dupHMM:
-    mem_mb: 13800
-    time: 2160
-  filter_all_sites_by_popln_calcLR:
-    mem_mb: 13800
-    threads: 2
-    time: 2160
-  filter_all_sites_by_popln_dupHMM:
-    mem_mb: 13800
-    threads: 2
-    time: 2160
-  filter_and_subsample_vcf_for_neestimator:
-    mem_mb: 13800
-    threads: 2
-    time: 240
-  filter_by_popln_4D_and_CDS:
-    mem_mb: 48000
-    threads: 2
-    time: 360
-  filter_beagle_with_prune_graph:
-    mem_mb: 23000
-    threads: 4
-    time: 180
-  filter_scaffold_lr_by_coverage_hap1:
-    time: 180
-  filter_scaffold_lr_by_coverage_hap2:
-    time: 180
-  find_4fold_degenerate_sites:
-    mem_mb: 13800
-    threads: 2
-  fix_sm_lb_per_bam:
-    time: 240
-  fold_global_SFS_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fold_global_SFS_by_population_CDS_sites:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fold_global_SFS_control_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fold_global_SFS_theta_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fold_SFS_4fold_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fold_SFS_CDSother_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  fst_analysis:
-    mem_mb: 149500
-    threads: 40
-    time: 540
-  fst_prep_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 540
-  global_SFS_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  global_SFS_by_population_CDS_sites:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  global_SFS_control_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  global_SFS_theta_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  global_SFS_with_inbreeding_by_population:
-    mem_mb: 149500
-    threads: 40
-    time: 240
-  GONE_contemporary_Ne_analysis:
-    mem_mb: 13800
-    threads: 12
-    time: 360
-  hwe_histogram_control:
-    mem_mb: 13800
-    threads: 2
-    time: 120
   indel_list:
     mem_mb: 38000
     threads: 4
     time: 1200
-  indel_list_per_sample:
-    mem_mb: 13800
-    threads: 2
-    time: 1440
-  index_all_sites_by_popln_calcLR:
-    mem_mb: 6900
-    time: 240
-  index_all_sites_by_popln_dupHMM:
-    mem_mb: 6900
-    time: 240
-  index_bams:
-    mem_mb: 13800
-    time: 1440
-  index_bams_per_round:
-    mem_mb: 13800
-    time: 1440
-  LD_decay_by_popln:
-    mem_mb: 128000
-    time: 600
   map_reads:
     mem_mb: 23000
     threads: 12
@@ -2343,246 +2017,29 @@ set-resources:
   merge_replicates:
     mem_mb: 4600
     time: 360
-  merge_bams:
-    mem_mb: 28000
-    threads: 12
-    time: 7200
-  merge_bams_round_1:
-    mem_mb: 28000
-    threads: 12
-    time: 7200
-  merge_bams_round_2:
-    mem_mb: 28000
-    threads: 12
-    time: 7200
   multiqc_raw:
     mem_mb: 6900
     time: 240
   multiqc_trimmed:
     mem_mb: 6900
     time: 240
-  ngsAdmix_analysis:
-    mem_mb: 128000
-    threads: 2
-    time: 1440
-  ngsF_HMM_analysis:
-    mem_mb: 23000
-    threads: 4
-    time: 720
-  ngsF_analysis:
-    mem_mb: 13800
-    threads: 4
-    time: 360
-  ngsLD_analysis:
-    mem_mb: 34400
-    threads: 4
-    time: 600
-  ngsLD_all_poplns:
-    mem_mb: 153000
-    threads: 4
-    time: 1439
-  ngsPara_hap1_scaffold_1:
-    mem_mb: 6900
-    time: 2880
-  ngsPara_hap2_scaffold_1:
-    mem_mb: 6900
-    time: 2880
-  ngsParalog_hap1:
-    mem_mb: 6900
-    time: 480
-  ngsParalog_hap2:
-    mem_mb: 6900
-    time: 480
-  ngsParalog_manhattan:
-    mem_mb: 13800
-    threads: 2
-    time: 120
-  ngsParalog_false_pos:
-    mem_mb: 9800
-    time: 480
-  ngsRelate_analysis:
-    mem_mb: 34400
-    threads: 12
-    time: 120
-  ngsRelate_analysis_inbreeding:
-    mem_mb: 34400
-    threads: 4
-    time: 60
-  ngsRelate_prep:
-    mem_mb: 9200
-    threads: 4
-    time: 60
-  PCAngsd_all_populations:
-    mem_mb: 103500
-    threads: 12
-    time: 359
-  PCAngsd_all_populations_LD_pruned:
-    mem_mb: 103500
-    threads: 12
-    time: 359
-  PCAngsd_all_populations_plots:
-    mem_mb: 13800
-    time: 120
-  plot_aggregate_depths_hap1:
-    mem_mb: 149500
-    threads: 4
-    time: 720
-  plot_aggregate_depths_hap2:
-    mem_mb: 149500
-    threads: 4
-    time: 720
-  plot_depth_per_scaffold_hap1:
-    mem_mb: 149500
-    threads: 4
-    time: 720
-  plot_depth_per_scaffold_hap2:
-    mem_mb: 149500
-    threads: 4
-    time: 720
-  plot_ld_distribution:
-    mem_mb: 34400
-    threads: 2
-    time: 240
-  plot_ld_decay:
-    mem_mb: 34400
-    threads: 2
-    time: 240
-  plot_thetas_output:
-    mem_mb: 34400
-    time: 240
-  prune_graph_all_poplns:
-    mem_mb: 35000
-    threads: 4
-    time: 3120
-  prune_graph_by_popln:
-    mem_mb: 35000
-    threads: 4
-    time: 1000
-  process_all_sites_bed:
-    mem_mb: 13800
-    time: 720
-  process_calcLR_deviant_snps:
-    mem_mb: 13800
-    time: 720
-  process_dupHMM_deviant_regions:
-    mem_mb: 13800
-    time: 720
   prepare_depth_files:
     time: 360
   realign_indels:
     mem_mb: 13800
     time: 1440
-  rohan_analysis:
-    mem_mb: 13800
-    threads: 4
-    time: 240
-  RZooROH_analysis:
-    mem_mb: 13800
-    threads: 4
-    time: 240
-  theta_prep_by_population:
-    mem_mb: 13800
-    threads: 12
-    time: 360
   trim_reads:
     time: 360
+
 set-threads:
-  angsd_HWE_by_population_on_CDS_SNPs: 12
-  angsd_HWE_by_population_on_control_SNPs: 5
-  angsd_HWE_by_population_on_dupHMM_SNPs: 12
-  angsd_SFS_by_population_on_CDS_sites: 12
-  angsd_SFS_by_population_on_all_sites: 12
-  angsd_SFS_canonical_sites: 12
-  angsd_SFS_control_by_population_on_all_sites: 12
-  angsd_for_currentNe2: 12
-  angsd_for_EMU: 16
-  angsd_for_DFE_4fold: 12
-  angsd_for_DFE_CDS: 12
-  angsd_for_GONE: 12
-  angsd_for_PCAngsd: 12
-  angsd_for_phylotree: 12
-  angsd_for_bcftools_roh: 4
-  angsd_for_ngsF: 12
-  angsd_for_ngsLD: 12
-  angsd_for_ngsRelate: 12
-  angsd_for_NeEstimator: 12
-  angsd_for_thetas: 12
-  angsd_for_RZooROH: 12
-  angsd_raw_SNP: 5
-  bcftools_annotate_vcf: 4
-  bcftools_roh_across_samples: 24
-  bcftools_roh_single_sample: 24
   bcftools_snp_call_by_population: 12
-  bcftools_snp_call_canonical_by_population: 12
   clip_overlapping_reads: 4
-  convert_raw_sites_all_poplns: 4
-  convert_bcf_to_vcf: 2
-  convert_vcf_GP_to_GT: 2
-  convert_vcf_to_genepop: 2
-  combine_raw_sites_all_poplns: 4
-  combine_GLs_all_popln_scaffolds: 4
-  combine_maf_all_popln_scaffolds: 4
-  combine_GLs_phylo_all_popln_scaffolds: 4
-  combine_maf_phylo_all_popln_scaffolds: 4
-  currentne2_estK: 4
-  currentne2_kgrid: 4
-  currentne2_x: 4
-  dupHMM_run_hap1: 2
-  dupHMM_run_hap2: 2
-  estimate_coverage_per_population_and_scaffold_hap1: 2
-  estimate_coverage_per_population_and_scaffold_hap2: 2
-  estimate_depth_hap1: 4
-  estimate_depth_hap2: 4
-  estimate_depth_round_1_per_scaffold: 4
-  estimate_depth_round_2_per_scaffold: 4
-  estimate_fst_stats: 4
-  estimate_theta_by_site: 4
-  estimate_theta_sliding_window: 4
-  extract_all_sites: 12
-  extract_all_sites_all_populations: 12
   fastqc: 2
   fastqc_raw: 2
-  filter_all_sites_all_populations_calcLR: 2
-  filter_all_sites_all_populations_dupHMM: 2
-  filter_all_sites_by_popln_calcLR: 2
-  filter_all_sites_by_popln_dupHMM: 2
-  filter_by_popln_4D_and_CDS: 2
-  filter_beagle_with_prune_graph: 4
-  fold_global_SFS_by_population: 40
-  fst_analysis: 40
-  fst_prep_by_population: 40
-  GONE_contemporary_Ne_analysis: 12
-  global_SFS_by_population: 40
-  global_SFS_control_by_population: 40
-  global_SFS_theta_by_population: 40
-  global_SFS_with_inbreeding_by_population: 40
   indel_list: 4
   map_reads: 12
   mark_remove_duplicates: 2
-  merge_bams: 12
-  merge_bams_round_1: 12
-  merge_bams_round_2: 12
   multiqc_raw: 2
   multiqc_trimmed: 2
-  ngsF_HMM_analysis: 4
-  ngsF_analysis: 4
-  ngsLD_analysis: 4
-  ngsLD_all_poplns: 4
-  ngsParalog_manhattan: 2
-  ngsRelate_analysis: 4
-  ngsRelate_analysis_inbreeding: 4
-  ngsRelate_prep: 4
-  PCAngsd_all_populations: 12
-  PCAngsd_all_populations_LD_pruned: 12
-  plot_aggregate_depths_hap1: 4
-  plot_aggregate_depths_hap2: 4
-  plot_depth_per_scaffold_hap1: 4
-  plot_depth_per_scaffold_hap2: 4
-  plot_ld_distribution: 2
-  prune_graph_all_poplns: 4
-  prune_graph_by_popln: 4
   realign_indels: 12
-  rohan_analysis: 4
-  RZooROH_analysis: 4
-  theta_prep_by_population: 4
 use-envmodules: true
