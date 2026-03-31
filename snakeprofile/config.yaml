@@ -1966,7 +1966,7 @@ jobs: 750
 keep-going: true
 latency-wait: 360
 local-cores: 1
-max-jobs-per-second: 10
+max-jobs-per-second: 20
 max-status-checks-per-second: 50
 printshellcmds: true
 rerun-incomplete: true
@@ -1977,7 +1977,7 @@ set-resources:
   bcftools_snp_call_by_scaffold:
     mem_mb: 34400
     threads: 24
-    time: 900
+    time: 1440
   clip_overlapping_reads:
     mem_mb: 13800
     threads: 4
@@ -1988,13 +1988,13 @@ set-resources:
   concat_scaffold_vcfs:
     mem_mb: 13800
     threads: 4
-    time: 600
+    time: 1080
   estimate_depth_RepAdapt:
     mem_mb: 9200
-    time: 300
+    time: 600
   estimate_depth_RepAdapt_stats:
-    mem_mb: 5000
-    time: 300
+    mem_mb: 9200
+    time: 600
   fastqc:
     mem_mb: 6900
     threads: 2
@@ -2003,6 +2003,10 @@ set-resources:
     mem_mb: 6900
     threads: 2
     time: 180
+  filter_bcftools_vcf:
+    mem_mb: 38000
+    threads: 4
+    time: 520
   indel_list:
     mem_mb: 38000
     threads: 4

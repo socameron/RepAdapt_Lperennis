@@ -66,3 +66,31 @@ rule concat_scaffold_vcfs:
     bcftools concat --threads {threads} -f "$FILELIST" -Oz -o {output.vcf} > {log} 2>&1
     tabix -f {output.vcf} 2>> {log}
     """
+
+
+rule filter_bcftools_vcf:
+  input:
+    vcf = "results/bcftools/hap2/all_scaffolds.vcf.gz",
+    tbi = "results/bcftools/hap2/all_scaffolds.vcf.gz.tbi"
+  output:
+    vcf = "results/bcftools/hap2/all_scaffolds.filtered.vcf.gz",
+    tbi = "results/bcftools/hap2/all_scaffolds.filtered.vcf.gz.tbi"
+  log:
+    "results/logs/bcftools/filter/all_scaffolds_filtered.log"
+  threads: 2
+  envmodules:
+    "bcftools/1.22",
+    "tabix/0.2.6"
+  shell:
+    r"""
+    set -euo pipefail
+    mkdir -p "$(dirname {output.vcf})" "$(dirname {log})"
+
+    bcftools filter \
+      -e 'AC=AN || QUAL<30 || MQ<30' \
+      -Oz \
+      -o {output.vcf} \
+      {input.vcf} > {log} 2>&1
+
+    tabix -f -p vcf {output.vcf} 2>> {log}
+    """
