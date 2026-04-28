@@ -55,10 +55,25 @@ rule estimate_depth_RepAdapt:
   log:
     "results/logs/create_temp_depth/{sample_prefix}.log"
   envmodules:
-    "samtools/1.20"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["samtools"]
   shell:
     """
-    samtools depth --reference {input.fasta} -aa {input.bam} > {output.temp_depth}
+    set -euo pipefail
+    mkdir -p "$(dirname {output.temp_depth})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      samtools depth \
+        --reference {input.fasta} \
+        -aa \
+        {input.bam} \
+      > {output.temp_depth} 2> {log}
     """
 
 rule estimate_depth_RepAdapt_stats:
@@ -75,30 +90,57 @@ rule estimate_depth_RepAdapt_stats:
     windows_sorted="results/depths/RepAdapt_method/{sample_prefix}-windows.sorted.tsv"
   params:
     temp_window="results/depths/RepAdapt_temp/{sample_prefix}-windows.tsv",
-    temp_genes="results/depths/RepAdapt_temp/{sample_prefix}-genes.tsv"
+    temp_genes="results/depths/RepAdapt_temp/{sample_prefix}-genes.tsv",
+    container=CONTAINERS["bedtools"]
   log:
     "results/logs/estimate_depth_RepAdapt/{sample_prefix}.log"
   envmodules:
-    "samtools/1.20",
-    "bedtools/2.31.0"
+    "apptainer/1.3.5"
   shell:
     """
-    set +o pipefail #we force the rule because we tested it line by line and it works, just somehow not in one rule
+    set +o pipefail
+    mkdir -p "$(dirname {output.wg})" "$(dirname {params.temp_window})" "$(dirname {log})"
 
-    # Gene depth analysis: compute the mean depth per gene
-    awk '{{print $1"\\t"$2"\\t"$2"\\t"$3}}' {input.temp_depth} | bedtools map -a {input.genes_bed} -b stdin -c 4 -o mean -null 0 -g {input.genome_bed} | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' | sort -k1,1 > {params.temp_genes} || true
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
 
-    join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' {input.genes_list} {params.temp_genes} > {output.genes_sorted} || true
+    awk '{{print $1"\\t"$2"\\t"$2"\\t"$3}}' {input.temp_depth} \
+    | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+        bedtools map \
+          -a {input.genes_bed} \
+          -b stdin \
+          -c 4 \
+          -o mean \
+          -null 0 \
+          -g {input.genome_bed} \
+    | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' \
+    | sort -k1,1 \
+    > {params.temp_genes} || true
 
-    # Window depth analysis: compute the mean depth per window
-    awk '{{print $1"\\t"$2"\\t"$2"\\t"$3}}' {input.temp_depth} | bedtools map -a {input.windows_bed} -b stdin -c 4 -o mean -null 0 -g {input.genome_bed} | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' | sort -k1,1 > {params.temp_window} || true
+    join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' \
+      {input.genes_list} {params.temp_genes} \
+      > {output.genes_sorted} || true
 
-    join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' {input.windows_list} {params.temp_window} > {output.windows_sorted} || true
+    awk '{{print $1"\\t"$2"\\t"$2"\\t"$3}}' {input.temp_depth} \
+    | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+        bedtools map \
+          -a {input.windows_bed} \
+          -b stdin \
+          -c 4 \
+          -o mean \
+          -null 0 \
+          -g {input.genome_bed} \
+    | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' \
+    | sort -k1,1 \
+    > {params.temp_window} || true
 
-    # Overall genome depth (average depth across all positions)
-    awk '{{sum += $3; count++}} END {{if (count > 0) print sum/count; else print "No data"}}' {input.temp_depth} > {output.wg}
+    join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' \
+      {input.windows_list} {params.temp_window} \
+      > {output.windows_sorted} || true
 
-    # Cleanup temporary files
+    awk '{{sum += $3; count++}} END {{if (count > 0) print sum/count; else print "No data"}}' \
+      {input.temp_depth} > {output.wg}
+
     rm -f {input.temp_depth} {params.temp_genes} {params.temp_window}
     """
 

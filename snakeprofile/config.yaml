@@ -1978,10 +1978,6 @@ set-resources:
     mem_mb: 34400
     threads: 24
     time: 1440
-  clip_overlapping_reads:
-    mem_mb: 13800
-    threads: 4
-    time: 420
   combine_depth_RepAdapt:
     mem_mb: 38000
     time: 720
@@ -2037,7 +2033,6 @@ set-resources:
 
 set-threads:
   bcftools_snp_call_by_population: 12
-  clip_overlapping_reads: 4
   fastqc: 2
   fastqc_raw: 2
   indel_list: 4
