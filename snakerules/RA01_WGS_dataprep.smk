@@ -2,30 +2,50 @@
 #### DATA PREPARATION ####
 ##########################
 
-# Trim adapter ends off each sequence file using Trimmomatic
+# Trim adapter ends off each sequence file using fastp
 rule trim_reads:
   input:
     r1=lambda wildcards: get_fastq_paths(wildcards.batch, wildcards.sample, "R1"),
     r2=lambda wildcards: get_fastq_paths(wildcards.batch, wildcards.sample, "R2")
   output:
-    r1="results/fastq_trimmed/{batch}/{sample}_R1.fastq.gz",
-    r1_unp="results/fastq_trimmed/{batch}/{sample}_R1_unpaired.fastq.gz",
-    r2="results/fastq_trimmed/{batch}/{sample}_R2.fastq.gz",
-    r2_unp="results/fastq_trimmed/{batch}/{sample}_R2_unpaired.fastq.gz"
+    r1="results/fastq_trimmed/{batch}/{sample}_R1_trimmed.fastq.gz",
+    r2="results/fastq_trimmed/{batch}/{sample}_R2_trimmed.fastq.gz"
   log:
     "results/logs/trim_reads/{batch}/{sample}.log"
+  threads: 4
   envmodules:
-    "trimmomatic/0.39"
+    "apptainer/1.3.5"
   params:
-    adapters="$EBROOTTRIMMOMATIC/adapters/TruSeq3-PE-2.fa"
+    container="/home/socamero/containers/fastp_0.20.1.sif"
   shell:
-    "java -jar $EBROOTTRIMMOMATIC/trimmomatic-0.39.jar PE {input.r1} {input.r2} "
-    "{output.r1} {output.r1_unp} {output.r2} {output.r2_unp} "
-    "ILLUMINACLIP:{params.adapters}:2:30:10:1 " #previously had ':True' but this failed even though there's documentation of this online
-    "LEADING:3 "
-    "TRAILING:3 "
-    "SLIDINGWINDOW:4:15 " # removes low quality bases
-    "MINLEN:36 2> {log}"
+    """
+    set -euo pipefail
+
+    mkdir -p "$(dirname {output.r1})" "$(dirname {log})" /home/socamero/containers
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    if [[ ! -d "$HOST_SCRATCH" ]]; then
+        echo "Host scratch path not found: $HOST_SCRATCH" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "{params.container}" ]]; then
+        apptainer pull "{params.container}" docker://quay.io/biocontainers/fastp:0.20.1--h8b12597_0
+    fi
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      "{params.container}" \
+      fastp \
+        -w {threads} \
+        -i {input.r1} \
+        -I {input.r2} \
+        -o {output.r1} \
+        -O {output.r2} \
+      > {log} 2>&1
+    """
 
 # Creating faidx index for reference genome
 rule faidx_reference:
@@ -36,9 +56,23 @@ rule faidx_reference:
   log:
     "results/logs/refgen/lupinehap{hap}_faidx.log"
   envmodules:
-    "samtools/1.20"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["samtools"]
   shell:
-    "samtools faidx {input} 2> {log}"
+    """
+    set -euo pipefail
+    mkdir -p "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      samtools faidx {input} \
+      2> {log}
+    """
 
 # Rules for indexing reference genomes (haplotypes 1 and 2)
 rule index_reference:
@@ -49,9 +83,23 @@ rule index_reference:
   log:
     "results/logs/refgen/lupinehap{hap}_bwa_index.log"
   envmodules:
-    "bwa/0.7.18"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["bwa"]
   shell:
-    "bwa index {input} 2> {log}"
+    """
+    set -euo pipefail
+    mkdir -p "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      bwa index -a bwtsw {input} \
+      2> {log}
+    """
 
 # Rules for creating dictionary files
 rule create_dict:
@@ -62,78 +110,68 @@ rule create_dict:
   log:
     "results/logs/refgen/hap{hap}_dict.log"
   envmodules:
-    "samtools/1.20"
-  shell:
-    "samtools dict {input} > {output} 2> {log}"
-
-# Removing reads smaller than 70bp so 'bwa mem' works better
-# Note for a read to be kept, it must be greater than 70bp in BOTH read 1 and 2.
-# There are some tools available in envmodules 'seqkit', but I found none that were compatible
-rule filter_short_reads_with_seqkit:
-  input:
-    r1="results/fastq_trimmed/{batch}/{sample}_R1.fastq.gz",
-    r2="results/fastq_trimmed/{batch}/{sample}_R2.fastq.gz"
-  output:
-    r1_filtered="results/fastq_filtered/{batch}/{sample}_R1_filtered.fastq.gz",
-    r2_filtered="results/fastq_filtered/{batch}/{sample}_R2_filtered.fastq.gz"
-  envmodules:
-    "StdEnv/2020",
-    "seqkit/2.3.1"
-  log:
-    "results/logs/filter_fastq_70bp/{batch}/{sample}_filter_fastq.log"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["picard"]
   shell:
     """
-    seqkit seq -m 70 {input.r1} | gzip > {output.r1_filtered}
-    seqkit seq -m 70 {input.r2} | gzip > {output.r2_filtered}
+    set -euo pipefail
+    mkdir -p "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      picard CreateSequenceDictionary \
+        R={input} \
+        O={output} \
+      2> {log}
     """
 
-# Pair filtered reads back together
-# Note: naming convention stays the same! Just different folder
-rule pair_filtered_reads:
-  input:
-    r1_filtered="results/fastq_filtered/{batch}/{sample}_R1_filtered.fastq.gz",
-    r2_filtered="results/fastq_filtered/{batch}/{sample}_R2_filtered.fastq.gz"
-  output:
-    r1_paired="results/fastq_paired/{batch}/{sample}_R1_filtered.fastq.gz",
-    r2_paired="results/fastq_paired/{batch}/{sample}_R2_filtered.fastq.gz"
-  envmodules:
-    "StdEnv/2020",
-    "seqkit/2.3.1"
-  log:
-    "results/logs/pair_fastq_70bp/{batch}/{sample}_pair_fastq.log"
-  shell:
-    """
-    seqkit pair \
-    -1 {input.r1_filtered} \
-    -2 {input.r2_filtered} \
-    -O results/fastq_paired/{wildcards.batch}
-    """
 
 # NOTE: Prior to mapping, some people like to merge fastqs from the same individual/library and remove PCR duplicates prior to mapping using SuperDeduper from HTStream (last used 2020)
 # This might be helpful in reducing heterozygote excess, however I have opted NOT to do this as it may be outdated.
 
+# bwa version '0.7.17' for RepAdapt
 # Mapping/Aligning reads to reference haplotypes
 rule map_reads:
   input:
-    r1="results/fastq_paired/{batch}/{sample}_R1_filtered.fastq.gz",
-    r2="results/fastq_paired/{batch}/{sample}_R2_filtered.fastq.gz",
+    r1="results/fastq_trimmed/{batch}/{sample}_R1_trimmed.fastq.gz",
+    r2="results/fastq_trimmed/{batch}/{sample}_R2_trimmed.fastq.gz",
     genome="data/reference/hap{hap}/lupinehap{hap}.fasta",
     idx=multiext("data/reference/hap{hap}/lupinehap{hap}.fasta", ".amb", ".ann", ".bwt", ".pac", ".sa")
   output:
-    "results/bam_raw/hap{hap}/{batch}/{sample}_hap{hap}.bam"
+    bam="results/bam_raw/hap{hap}/{batch}/{sample}_hap{hap}.bam",
+    bai="results/bam_raw/hap{hap}/{batch}/{sample}_hap{hap}.bam.bai"
   log:
     "results/logs/map_reads/hap{hap}/{batch}/{sample}_hap{hap}.log"
+  threads: 4
   envmodules:
-    "bwa/0.7.18",
-    "samtools/1.20"
-  threads: 12 
+    "apptainer/1.3.5"
   params:
-    RG="-R '@RG\\tID:{sample}\\tSM:{sample}\\tPL:ILLUMINA' "
+    bwa_container=CONTAINERS["bwa"],
+    samtools_container=CONTAINERS["samtools"]
   shell:
     """
-    bwa mem {params.RG} -t {threads} {input.genome} {input.r1} {input.r2} |\
-    samtools view -u |\
-    samtools sort - > {output}) 2> {log}
+    set -euo pipefail
+    mkdir -p "$(dirname {output.bam})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.bwa_container} \
+      bwa mem -t {threads} {input.genome} {input.r1} {input.r2} \
+      2> {log} \
+    | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+      samtools view -Sb -q 10 - \
+    | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+      samtools sort --threads {threads} -o {output.bam} -
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+      samtools index {output.bam} {output.bai} \
+      2>> {log}
     """
 
 # We add metadata associated with each .bam file since there are differences in sequencing platforms, etc. 
@@ -145,26 +183,35 @@ rule add_read_groups:
   output:
     bam="results/bam_raw/hap{hap}/{batch}_RG/{sample}_hap{hap}_RG.bam"
   params:
-    # Use the sample name from the wildcard for all read group fields
     rgid=lambda wildcards: wildcards.sample,
     rglb=lambda wildcards: f"{wildcards.sample}_LB",
     rgpl="ILLUMINA",
     rgpu=lambda wildcards: wildcards.batch,
-    rgsm=lambda wildcards: wildcards.sample
+    rgsm=lambda wildcards: wildcards.sample,
+    container=CONTAINERS["picard"]
   log:
     "results/logs/add_read_groups/hap{hap}/{batch}/{sample}_hap{hap}_RG.log"
   envmodules:
-    "picard/3.1.0"
+    "apptainer/1.3.5"
   shell:
     """
-    java -jar $EBROOTPICARD/picard.jar AddOrReplaceReadGroups \
-      I={input.bam} \
-      O={output.bam} \
-      RGID={params.rgid} \
-      RGLB={params.rglb} \
-      RGPL={params.rgpl} \
-      RGPU={params.rgpu} \
-      RGSM={params.rgsm} \
+    set -euo pipefail
+    mkdir -p "$(dirname {output.bam})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      picard AddOrReplaceReadGroups \
+        I={input.bam} \
+        O={output.bam} \
+        RGID={params.rgid} \
+        RGLB={params.rglb} \
+        RGPL={params.rgpl} \
+        RGPU={params.rgpu} \
+        RGSM={params.rgsm} \
       2> {log}
     """
 # ID = unique ID | LB = library | PL = platform | PU = platform unit | SM = sample
@@ -199,39 +246,46 @@ rule merge_replicates:
   input:
     lambda wildcards: find_replicates(wildcards.sample_prefix, wildcards.hap)
   output:
-    "results/bam_raw/hap{hap}/merged/{sample_prefix}_hap{hap}.bam"
+    "results/bam_raw/hap{hap}/merged/{sample_prefix}_hap{hap}_RG.bam"
   log:
     "results/logs/merge_replicates/hap{hap}/{sample_prefix}_hap{hap}.log"
   envmodules:
-    "samtools/1.17"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["samtools"]
   shell:
     """
-    module load StdEnv/2020
-    module load samtools/1.17
-    echo "Input files: {input}" >> {log}
+    set -euo pipefail
+    mkdir -p "$(dirname {output})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+
+    echo "Input files: {input}" > {log}
     echo "Output file: {output}" >> {log}
-    
-    # If no input files are found, exit with an error.
+
     if [ -z "$(echo {input} | tr -d '[:space:]')" ]; then
       echo "No files found for {wildcards.sample_prefix} in hap{wildcards.hap}" >> {log}
       exit 1
-    # If there's only one file, just copy it.
     elif [ $(echo {input} | wc -w) -eq 1 ]; then
-      echo "Single file found for {wildcards.sample_prefix} in hap{wildcards.hap}, copying to merged folder." >> {log}
+      echo "Single file found; copying." >> {log}
       cp {input} {output}
     else
-      echo "Multiple files found for {wildcards.sample_prefix} in hap{wildcards.hap}. Merging..." >> {log}
-      samtools merge -f -o {output} {input} 2>> {log}
+      echo "Multiple files found; merging." >> {log}
+      apptainer exec --cleanenv \
+        -B "$BIND" \
+        --pwd "$PWD" \
+        {params.container} \
+        samtools merge -f -o {output} {input} \
+        2>> {log}
     fi
-    sync
 
     rm -f results/bam_raw/hap{wildcards.hap}/merged/*rep2*.bam
     """
 
 
 # Marking and removing PCR duplicates + index
-# Note that: /bam_mkdup/ is where marked duplicates are marked AND removed.
-# marked duplicates here are now removed (updated March 26, 2025)
+# Use PICARD tools v2.26.3
 rule mark_remove_duplicates:
   input:
     raw_bam="results/bam_raw/hap{hap}/merged/{sample_prefix}_hap{hap}_RG.bam"
@@ -242,50 +296,44 @@ rule mark_remove_duplicates:
   log:
     "results/logs/mark_remove_duplicates/hap{hap}/{sample_prefix}_hap{hap}.log"
   envmodules:
-    "gatk/4.4.0.0"
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["picard"]
   shell:
     """
-    gatk MarkDuplicates \
-    --CREATE_INDEX \
-    -I {input.raw_bam} \
-    -O {output.bam} \
-    -M {output.metrics} \
-    --REMOVE_DUPLICATES true \
-    2> {log}
+    set -euo pipefail
+    mkdir -p "$(dirname {output.bam})" "$(dirname {output.metrics})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+
+    apptainer exec --cleanenv \
+      -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
+      --pwd "$PWD" \
+      {params.container} \
+      picard MarkDuplicates \
+        INPUT={input.raw_bam} \
+        OUTPUT={output.bam} \
+        METRICS_FILE={output.metrics} \
+        VALIDATION_STRINGENCY=SILENT \
+        REMOVE_DUPLICATES=true \
+        CREATE_INDEX=true \
+      2> {log}
+
+    if [[ -f "{output.bam}.bai" && ! -f "{output.bai}" ]]; then
+      mv "{output.bam}.bai" "{output.bai}"
+    fi
     """
 
-# Clip overlapping reads
-# Previous we loaded packages nixpkgs/16.09 intel/2018.3 to run bamutil/1.0.14 but these might be depreciated with new changes to the Supercomputer
-# We use samtools/1.18 because it is compatible with the output of bamutil/1.0.14
-rule clip_overlapping_reads:
-  input:
-    bam="results/bam_mkdup/hap{hap}/{sample_prefix}_hap{hap}_mkdup.bam"
-  output:
-    clipped_bam="results/bam_clipped/hap{hap}/{sample_prefix}_hap{hap}_clipped.bam",
-    clipped_index="results/bam_clipped/hap{hap}/{sample_prefix}_hap{hap}_clipped.bai"
-  log:
-    "results/logs/clip_overlap/hap{hap}/{sample_prefix}_clip_overlapping_reads.log"
-  shell:
-    """
-    module --force purge
-    module load StdEnv/2020
-    module load bamutil/1.0.14
-    bam clipOverlap --in {input.bam} --out {output.clipped_bam} 2> {log} || true
-    module --force purge
-    module load StdEnv/2023 samtools/1.18
-    samtools index -b {output.clipped_bam} -o {output.clipped_index} --threads 4
-    module --force purge
-    """
 
 # After downstream analyses (admixture), it appears that LCTGP-19 and SWCP-19 are mislabeled and need to swap names.
 # The first and second raw reads (fastq files) for both SWCP-19 and LCTGP-19 still match. It was just mislabelled at the sequencing step!
 # NOTE: The metadata in the RG group is incorrect still and hasn't been updated!
 rule rename_specific_bam_files:
   input:
-    lctgp_bam="results/bam_clipped/hap{hap}/LCTGP-19_hap{hap}_clipped.bam",
-    lctgp_bai="results/bam_clipped/hap{hap}/LCTGP-19_hap{hap}_clipped.bai",
-    swcp_bam="results/bam_clipped/hap{hap}/SWCP-19_hap{hap}_clipped.bam",
-    swcp_bai="results/bam_clipped/hap{hap}/SWCP-19_hap{hap}_clipped.bai"
+    lctgp_bam="results/bam_mkdup/hap{hap}/LCTGP-19_hap{hap}_mkdup.bam",
+    lctgp_bai="results/bam_mkdup/hap{hap}/LCTGP-19_hap{hap}_mkdup.bai",
+    swcp_bam="results/bam_mkdup/hap{hap}/SWCP-19_hap{hap}_mkdup.bam",
+    swcp_bai="results/bam_mkdup/hap{hap}/SWCP-19_hap{hap}_mkdup.bai"
   output:
     checkpoint="results/checkpoints/hap{hap}/rename_specific_files_checkpoint.txt"
   log:
@@ -293,10 +341,10 @@ rule rename_specific_bam_files:
   shell:
     """
     # Temporary files to avoid overwriting
-    tmp_lctgp_bam="results/bam_clipped/hap{wildcards.hap}/LCTGP-19_temp.bam"
-    tmp_lctgp_bai="results/bam_clipped/hap{wildcards.hap}/LCTGP-19_temp.bai"
-    tmp_swcp_bam="results/bam_clipped/hap{wildcards.hap}/SWCP-19_temp.bam"
-    tmp_swcp_bai="results/bam_clipped/hap{wildcards.hap}/SWCP-19_temp.bai"
+    tmp_lctgp_bam="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_temp.bam"
+    tmp_lctgp_bai="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_temp.bai"
+    tmp_swcp_bam="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_temp.bam"
+    tmp_swcp_bai="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_temp.bai"
 
     # Copy the files to temporary locations
     cp {input.lctgp_bam} $tmp_lctgp_bam
@@ -305,10 +353,10 @@ rule rename_specific_bam_files:
     cp {input.swcp_bai} $tmp_swcp_bai
 
     # Rename LCTGP-19 to SWCP-19 and vice versa using the temporary files
-    mv $tmp_lctgp_bam results/bam_clipped/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_clipped.bam
-    mv $tmp_lctgp_bai results/bam_clipped/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_clipped.bai
-    mv $tmp_swcp_bam results/bam_clipped/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_clipped.bam
-    mv $tmp_swcp_bai results/bam_clipped/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_clipped.bai
+    mv $tmp_lctgp_bam results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bam
+    mv $tmp_lctgp_bai results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bai
+    mv $tmp_swcp_bam results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bam
+    mv $tmp_swcp_bai results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bai
 
     # Remove the temporary files
     rm -f $tmp_lctgp_bam $tmp_lctgp_bai $tmp_swcp_bam $tmp_swcp_bai
@@ -319,12 +367,12 @@ rule rename_specific_bam_files:
 
 # Create bam list per population for entry into realign indels 
 # Set for haplotype 2
-rule generate_clipped_bam_list_per_population:
+rule generate_mkdup_bam_list_per_population:
   input:
-    expand("results/bam_clipped/hap2/{sample_prefix}_hap2_clipped.bam", sample_prefix=sample_prefixes),
+    expand("results/bam_mkdup/hap2/{sample_prefix}_hap2_mkdup.bam", sample_prefix=sample_prefixes),
     checkpoint="results/checkpoints/hap2/rename_specific_files_checkpoint.txt"
   output:
-    "data/lists/hap2/{population}_clipped_hap2.list"
+    "data/lists/hap2/{population}_mkdup_hap2.list"
   wildcard_constraints:
     population="|".join(POPULATIONS)
   run:
@@ -346,34 +394,29 @@ rule generate_clipped_bam_list_per_population:
 # apptainer pull gatk3.sif docker://broadinstitute/gatk3:3.8-1
 rule indel_list:
   input:
-    bam_list = "data/lists/hap{hap}/{population}_clipped_hap{hap}.list",
+    bam_list = "data/lists/hap{hap}/{population}_mkdup_hap{hap}.list",
     reference = "data/reference/hap{hap}/lupinehap{hap}.fasta",
   output:
     intervals = "data/lists/hap{hap}/{population}_hap{hap}_indels.intervals",
   log:
-    "results/logs/indel_list/hap{hap}/{population}_hap{hap}_indel_list.log",
+    "results/logs/indel_list/hap{hap}/{population}_hap{hap}_indel_list.log"
   threads: 4
   envmodules:
-    "apptainer/1.3.5",
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["gatk3"]
   shell:
     """
     set -euo pipefail
     mkdir -p "$(dirname {output.intervals})" "$(dirname {log})"
 
-    # Resolve your host scratch root (e.g., /home/socamero/links/scratch)
     HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
 
-    if [[ ! -d "$HOST_SCRATCH" ]]; then
-        echo "Host scratch path not found: $HOST_SCRATCH" >&2
-        exit 1
-    fi
-
-    # Bind current project dir (for relative paths) AND map host scratch -> /links/scratch inside container
     env -u JAVA_TOOL_OPTIONS \
     apptainer exec --cleanenv \
       -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
       --pwd "$PWD" \
-      /home/socamero/gatk3.sif \
+      {params.container} \
       java -Xms2g -Xmx16g -jar /usr/GenomeAnalysisTK.jar \
         -T RealignerTargetCreator \
         -R {input.reference} \
@@ -386,39 +429,35 @@ rule indel_list:
 
 rule realign_indels:
   input:
-    bam = "results/bam_clipped/hap{hap}/{sample_prefix}_hap{hap}_clipped.bam",
+    bam = "results/bam_mkdup/hap{hap}/{sample_prefix}_hap{hap}_mkdup.bam",
     ref = "data/reference/hap{hap}/lupinehap{hap}.fasta",
     intervals = lambda wildcards: "data/lists/hap" + wildcards.hap + "/" + next(pop for pop in POPULATIONS if pop in wildcards.sample_prefix) + f"_hap{wildcards.hap}_indels.intervals",
   output:
-    realigned_bam = "results/bam_realign/hap{hap}/{sample_prefix}_hap{hap}_realign.bam",
+    realigned_bam = "results/bam_realign/hap{hap}/{sample_prefix}_hap{hap}_realign.bam"
   log:
-    "results/logs/realign_indels/hap{hap}/{sample_prefix}_hap{hap}_realign_indels.log",
+    "results/logs/realign_indels/hap{hap}/{sample_prefix}_hap{hap}_realign_indels.log"
   envmodules:
-    "apptainer/1.3.5",
+    "apptainer/1.3.5"
+  params:
+    container=CONTAINERS["gatk3"]
   shell:
     """
     set -euo pipefail
-    mkdir -p "$(dirname {input.intervals})" "$(dirname {log})"
+    mkdir -p "$(dirname {output.realigned_bam})" "$(dirname {log})"
 
-    # Resolve your host scratch root (e.g., /home/socamero/links/scratch)
     HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
 
-    if [[ ! -d "$HOST_SCRATCH" ]]; then
-        echo "Host scratch path not found: $HOST_SCRATCH" >&2
-        exit 1
-    fi
-
-    # Bind your current project dir (for relative paths) + /links/scratch (for any absolute paths in lists)
     env -u JAVA_TOOL_OPTIONS \
     apptainer exec --cleanenv \
       -B "$PWD:$PWD","$HOST_SCRATCH:/links/scratch" \
       --pwd "$PWD" \
-      /home/socamero/gatk3.sif \
+      {params.container} \
       java -Xms2g -Xmx16g -jar /usr/GenomeAnalysisTK.jar \
         -T IndelRealigner \
         -R {input.ref} \
         -I {input.bam} \
         -targetIntervals {input.intervals} \
+        --consensusDeterminationModel USE_READS \
         -o {output.realigned_bam} \
         -drf BadMate \
       &> {log}

@@ -120,7 +120,7 @@ def find_replicates(sample_prefix, hap):
     immediately followed by an underscore and then "hap{hap}".
     """
     # Broad glob pattern to capture candidates
-    pattern = f"results/bam_raw/hap{hap}/batch*/{sample_prefix}*_hap{hap}.bam"
+    pattern = f"results/bam_raw/hap{hap}/batch*_RG/{sample_prefix}*_hap{hap}_RG.bam"
     files = glob.glob(pattern, recursive=True)
     
     # Compile a regex to match:
@@ -129,7 +129,7 @@ def find_replicates(sample_prefix, hap):
     #   (?!\d)           --> not immediately followed by a digit (so "PPP-1" won't match "PPP-10")
     #   (?:-rep\d+)?     --> optionally match a replicate indicator like "-rep2"
     #   _hap             --> then an underscore and "hap..."
-    regex = re.compile(r'^' + re.escape(sample_prefix) + r'(?:-rep\d+)?_')
+    regex = re.compile(r'^' + re.escape(sample_prefix) + r'(?:-rep\d+)?_hap' + re.escape(str(hap)) + r'_RG\.bam$')
 
     
     # Filter files based on the regex match on the base name
@@ -231,6 +231,19 @@ def map_prefix_to_full_scaffold(prefix, hap_type):
             return scaffold
     return None  
 # Return None or an appropriate default if not found
+
+
+
+CONTAINERS = {
+    "fastp":    "/home/socamero/containers/fastp_0.20.1.sif",
+    "bwa":      "/home/socamero/containers/bwa_0.7.17.sif",
+    "samtools": "/home/socamero/containers/samtools_1.16.1.sif",
+    "picard":   "/home/socamero/containers/picard_2.26.3.sif",
+    "gatk3":    "/home/socamero/containers/gatk3_3.8.sif",
+    "bcftools": "/home/socamero/containers/bcftools_1.16.sif",
+    "vcftools": "/home/socamero/containers/vcftools_0.1.16.sif",
+    "bedtools": "/home/socamero/containers/bedtools_2.27.1.sif",
+}
 
 
 

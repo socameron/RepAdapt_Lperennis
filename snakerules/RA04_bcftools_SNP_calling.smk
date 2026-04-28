@@ -14,21 +14,40 @@ rule bcftools_snp_call_by_scaffold:
   log:
     "results/logs/bcftools/SNP_call/{hap2scaffolds}.log"
   params:
-    scaffolds = lambda wc: wc.hap2scaffolds
+    scaffolds = lambda wc: wc.hap2scaffolds,
+    container = CONTAINERS["bcftools"]
   threads: 4
   envmodules:
-    "bcftools/1.22"
+    "apptainer/1.3.5"
   shell:
     r"""
-    bcftools mpileup -Ou \
-      -f {input.ref} \
-      -b {input.bamlist} \
-      -q 5 -r {params.scaffolds} -I \
-      -a FMT/AD,FMT/DP \
-    | bcftools call \
-      -G - -f GQ -mv -Oz -o {output.vcf} \
-      --threads {threads} 2> {log}
-    tabix -f {output.vcf}
+    set -euo pipefail
+    mkdir -p "$(dirname {output.vcf})" "$(dirname {log})"
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      bcftools mpileup -Ou \
+        -f {input.ref} \
+        --bam-list {input.bamlist} \
+        -q 5 \
+        -r {params.scaffolds} \
+        -I \
+        -a FMT/AD,FMT/DP \
+    | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      bcftools call \
+        -G - \
+        -f GQ \
+        -mv \
+        -Oz \
+        -o {output.vcf} \
+        --threads {threads} \
+      2> {log}
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      tabix -f -p vcf {output.vcf} \
+      2>> {log}
     """
 
 rule concat_scaffold_vcfs:
@@ -41,7 +60,9 @@ rule concat_scaffold_vcfs:
     tbi = "results/bcftools/hap2/all_scaffolds.vcf.gz.tbi"
   threads: 8
   envmodules:
-    "bcftools/1.22"
+    "apptainer/1.3.5"
+  params:
+    container = CONTAINERS["bcftools"]
   log:
     "results/logs/bcftools/concat/all_scaffolds_concat.log"
   shell:
@@ -49,13 +70,15 @@ rule concat_scaffold_vcfs:
     set -euo pipefail
     mkdir -p "$(dirname {output.vcf})" "$(dirname {log})"
 
-    # Build filelist from scaffold names (no shell vars needed)
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+
     FILELIST="$(dirname {log})/vcf_filelist.txt"
+
     sed -e 's|^|results/bcftools/hap2/vcf_by_scaffold/|' \
         -e 's|$|.vcf.gz|' \
         {input.ref_list} > "$FILELIST"
 
-    # sanity check
     while IFS= read -r f; do
       if [[ ! -s "$f" ]]; then
         echo "Missing or empty VCF: $f" >&2
@@ -63,8 +86,17 @@ rule concat_scaffold_vcfs:
       fi
     done < "$FILELIST"
 
-    bcftools concat --threads {threads} -f "$FILELIST" -Oz -o {output.vcf} > {log} 2>&1
-    tabix -f {output.vcf} 2>> {log}
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      bcftools concat \
+        --threads {threads} \
+        -f "$FILELIST" \
+        -Oz \
+        -o {output.vcf} \
+      > {log} 2>&1
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      tabix -f -p vcf {output.vcf} \
+      2>> {log}
     """
 
 
@@ -79,18 +111,26 @@ rule filter_bcftools_vcf:
     "results/logs/bcftools/filter/all_scaffolds_filtered.log"
   threads: 2
   envmodules:
-    "bcftools/1.22",
-    "tabix/0.2.6"
+    "apptainer/1.3.5"
+  params:
+    container = CONTAINERS["bcftools"]
   shell:
     r"""
     set -euo pipefail
     mkdir -p "$(dirname {output.vcf})" "$(dirname {log})"
 
-    bcftools filter \
-      -e 'AC=AN || QUAL<30 || MQ<30' \
-      -Oz \
-      -o {output.vcf} \
-      {input.vcf} > {log} 2>&1
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
 
-    tabix -f -p vcf {output.vcf} 2>> {log}
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      bcftools filter \
+        -e 'AC=AN || MQ < 30' \
+        -Oz \
+        -o {output.vcf} \
+        {input.vcf} \
+      > {log} 2>&1
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
+      tabix -f -p vcf {output.vcf} \
+      2>> {log}
     """
