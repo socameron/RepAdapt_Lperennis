@@ -114,40 +114,32 @@ def extract_sample_prefix(sample_name):
 # Find replicates across BAM files as inputs into merge_replicates rule
 def find_replicates(sample_prefix, hap):
     """
-    Finds all BAM files corresponding to a given sample (using the unique sample_prefix)
-    across batches (batch_1, batch_2, batch_3). The function expects the BAM file names to
-    start exactly with sample_prefix and optionally a "-rep<number>" (for replicates), 
-    immediately followed by an underscore and then "hap{hap}".
-    """
-    # Broad glob pattern to capture candidates
-    pattern = f"results/bam_raw/hap{hap}/batch*_RG/{sample_prefix}*_hap{hap}_RG.bam"
-    files = glob.glob(pattern, recursive=True)
-    
-    # Compile a regex to match:
-    #   ^                 --> start of the filename
-    #   sample_prefix     --> exact sample prefix (escaped)
-    #   (?!\d)           --> not immediately followed by a digit (so "PPP-1" won't match "PPP-10")
-    #   (?:-rep\d+)?     --> optionally match a replicate indicator like "-rep2"
-    #   _hap             --> then an underscore and "hap..."
-    regex = re.compile(r'^' + re.escape(sample_prefix) + r'(?:-rep\d+)?_hap' + re.escape(str(hap)) + r'_RG\.bam$')
+    Finds all read-group BAMs corresponding to a given sample prefix across batches.
 
-    
-    # Filter files based on the regex match on the base name
-    filtered_files = [f for f in files if regex.search(os.path.basename(f))]
-    
-    # Write a debug file for inspection
+    Build the expected paths from the config instead of globbing the filesystem so
+    Snakemake can create missing upstream add_read_groups outputs when needed.
+    """
+    files = []
+    for batch in get_batches():
+        for sample in get_samples(batch).keys():
+            if extract_sample_prefix(sample) == sample_prefix:
+                files.append(
+                    f"results/bam_raw/hap{hap}/{batch}_RG/{sample}_hap{hap}_RG.bam"
+                )
+
+    files = sorted(files)
+
     debug_path = f"debug/debug_find_replicates_{sample_prefix}_hap{hap}.txt"
     os.makedirs(os.path.dirname(debug_path), exist_ok=True)
     with open(debug_path, "w") as f:
-        f.write(f"Pattern: {pattern}\n")
-        if filtered_files:
-            f.write("Found files:\n")
-            for file in filtered_files:
+        if files:
+            f.write("Expected input files:\n")
+            for file in files:
                 f.write(f"{file}\n")
         else:
-            f.write("No files found.\n")
-    
-    return filtered_files
+            f.write("No config entries found.\n")
+
+    return files
 
 
 # Get all unique sample prefixes by extracting from samples listed in config file
@@ -163,25 +155,12 @@ def list_sample_prefixes():
     )
     # Now extract the prefix from each sample name using your extract_sample_prefix function.
     sample_prefixes = {extract_sample_prefix(sample) for sample in all_samples}
-    return list(sample_prefixes)
+    return sorted(sample_prefixes)
 
 
 # List of sample prefixes
 sample_prefixes = list_sample_prefixes()
    
-
-
-
-# Debugging: Write sample_prefixes and haps to files
-#with open("debug_sample_prefixes.txt", "w") as f:
-    #f.write("Sample Prefixes:\n")
-    #for sp in sample_prefixes:
-        #f.write(f"{sp}\n")
-
-#with open("debug_haps.txt", "w") as f:
-    #f.write("Haplotypes:\n")
-    #for hap in haps:
-        #f.write(f"{hap}\n")
 
 # Use sample prefixes and designate to a particular population
 def get_population_sample_prefixes(population):
@@ -257,7 +236,10 @@ CONTAINERS = {
 # Expand the final files using the updated configuration
 rule all:
   input:
-    "results/depths/RepAdapt_method/combined_genes.tsv"
+    expand("results/depths/RepAdapt_method/{sample_prefix}-genes.sorted.tsv", sample_prefix=sample_prefixes),
+    "results/depths/RepAdapt_method/combined_wg.tsv",
+    "results/bcftools/hap2/rawg0138_Lupinus_perennis_SoSchoenHargreaves.vcf.gz",
+    "results/bcftools/hap2/rawg0138_Lupinus_perennis_SoSchoenHargreaves.vcf.gz.tbi"
 
 include: "snakerules/RA01_WGS_dataprep.smk"
 include: "snakerules/RA02_data_QC.smk"

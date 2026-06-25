@@ -2,6 +2,9 @@
 #### SNP calling using bcftools ####
 ####################################
 
+BCFTOOLS_HAP2_UNFILTERED_VCF = "results/bcftools/hap2/all_scaffolds_unfiltered.vcf.gz"
+BCFTOOLS_HAP2_FINAL_VCF = "results/bcftools/hap2/rawg0138_Lupinus_perennis_SoSchoenHargreaves.vcf.gz"
+
 # NOTE:  Ignore a ploidy map because L. perennis is diploid and the default setting is diploid
 # SNP‐calling rule, one job per scaffold:
 rule bcftools_snp_call_by_scaffold:
@@ -56,8 +59,8 @@ rule concat_scaffold_vcfs:
     vcfs = expand("results/bcftools/hap2/vcf_by_scaffold/{hap2scaffolds}.vcf.gz", hap2scaffolds=HAP2SCAFFOLDS),
     tbi  = expand("results/bcftools/hap2/vcf_by_scaffold/{hap2scaffolds}.vcf.gz.tbi", hap2scaffolds=HAP2SCAFFOLDS)
   output:
-    vcf = "results/bcftools/hap2/all_scaffolds.vcf.gz",
-    tbi = "results/bcftools/hap2/all_scaffolds.vcf.gz.tbi"
+    vcf = BCFTOOLS_HAP2_UNFILTERED_VCF,
+    tbi = BCFTOOLS_HAP2_UNFILTERED_VCF + ".tbi"
   threads: 8
   envmodules:
     "apptainer/1.3.5"
@@ -102,11 +105,11 @@ rule concat_scaffold_vcfs:
 
 rule filter_bcftools_vcf:
   input:
-    vcf = "results/bcftools/hap2/all_scaffolds.vcf.gz",
-    tbi = "results/bcftools/hap2/all_scaffolds.vcf.gz.tbi"
+    vcf = BCFTOOLS_HAP2_UNFILTERED_VCF,
+    tbi = BCFTOOLS_HAP2_UNFILTERED_VCF + ".tbi"
   output:
-    vcf = "results/bcftools/hap2/all_scaffolds.filtered.vcf.gz",
-    tbi = "results/bcftools/hap2/all_scaffolds.filtered.vcf.gz.tbi"
+    vcf = BCFTOOLS_HAP2_FINAL_VCF,
+    tbi = BCFTOOLS_HAP2_FINAL_VCF + ".tbi"
   log:
     "results/logs/bcftools/filter/all_scaffolds_filtered.log"
   threads: 2

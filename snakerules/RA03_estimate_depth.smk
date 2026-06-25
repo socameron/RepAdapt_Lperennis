@@ -51,7 +51,7 @@ rule estimate_depth_RepAdapt:
     fasta="data/reference/hap2/lupinehap2.fasta",
     bam="results/bam_realign/hap2/{sample_prefix}_hap2_realign.bam"
   output:
-    temp_depth="results/depths/RepAdapt_temp/{sample_prefix}.depth"
+    temp_depth=temp("results/depths/RepAdapt_temp/{sample_prefix}.depth")
   log:
     "results/logs/create_temp_depth/{sample_prefix}.log"
   envmodules:
@@ -98,8 +98,10 @@ rule estimate_depth_RepAdapt_stats:
     "apptainer/1.3.5"
   shell:
     """
-    set +o pipefail
+    set -euo pipefail
     mkdir -p "$(dirname {output.wg})" "$(dirname {params.temp_window})" "$(dirname {log})"
+    : > {log}
+    exec 2>> {log}
 
     HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
     BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
@@ -115,11 +117,15 @@ rule estimate_depth_RepAdapt_stats:
           -g {input.genome_bed} \
     | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' \
     | sort -k1,1 \
-    > {params.temp_genes} || true
+    > {params.temp_genes} || status=$?
+    if [ "${{status:-0}}" -ne 0 ] && [ "${{status}}" -ne 141 ]; then
+      exit "${{status}}"
+    fi
+    unset status
 
     join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' \
       {input.genes_list} {params.temp_genes} \
-      > {output.genes_sorted} || true
+      > {output.genes_sorted}
 
     awk '{{print $1"\\t"$2"\\t"$2"\\t"$3}}' {input.temp_depth} \
     | apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.container} \
@@ -132,16 +138,24 @@ rule estimate_depth_RepAdapt_stats:
           -g {input.genome_bed} \
     | awk -F "\\t" '{{print $1":"$2"-"$3"\\t"$4}}' \
     | sort -k1,1 \
-    > {params.temp_window} || true
+    > {params.temp_window} || status=$?
+    if [ "${{status:-0}}" -ne 0 ] && [ "${{status}}" -ne 141 ]; then
+      exit "${{status}}"
+    fi
+    unset status
 
     join -a 1 -e 0 -o '1.1 2.2' -t $'\\t' \
       {input.windows_list} {params.temp_window} \
-      > {output.windows_sorted} || true
+      > {output.windows_sorted}
 
     awk '{{sum += $3; count++}} END {{if (count > 0) print sum/count; else print "No data"}}' \
       {input.temp_depth} > {output.wg}
 
-    rm -f {input.temp_depth} {params.temp_genes} {params.temp_window}
+    test -s {output.genes_sorted}
+    test -s {output.windows_sorted}
+    test -s {output.wg}
+
+    rm -f {params.temp_genes} {params.temp_window}
     """
 
 
@@ -177,22 +191,25 @@ rule combine_depth_RepAdapt:
 
     # Combine window depth results:
     while read samp; do 
+      test -s results/depths/RepAdapt_method/${{samp}}-windows.sorted.tsv
       cut -f2 results/depths/RepAdapt_method/${{samp}}-windows.sorted.tsv > results/depths/RepAdapt_method/${{samp}}-windows.depthcol; 
     done < {params.samples_list}
     first_sample=$(head -n1 {params.samples_list})
-    paste results/depths/RepAdapt_method/${{first_sample}}-windows.sorted.tsv $(tail -n +2 {params.samples_list} | sed 's/.*/results\/depths\/RepAdapt_method\/&-windows.depthcol/') > {params.windows_temp}
+    paste results/depths/RepAdapt_method/${{first_sample}}-windows.sorted.tsv $(tail -n +2 {params.samples_list} | sed 's|.*|results/depths/RepAdapt_method/&-windows.depthcol|') > {params.windows_temp}
     cat {params.depth_header} {params.windows_temp} > {output.combined_windows}
 
     # Combine gene depth results:
     while read samp; do 
+      test -s results/depths/RepAdapt_method/${{samp}}-genes.sorted.tsv
       cut -f2 results/depths/RepAdapt_method/${{samp}}-genes.sorted.tsv > results/depths/RepAdapt_method/${{samp}}-genes.depthcol; 
     done < {params.samples_list}
     first_sample=$(head -n1 {params.samples_list})
-    paste results/depths/RepAdapt_method/${{first_sample}}-genes.sorted.tsv $(tail -n +2 {params.samples_list} | sed 's/.*/results\/depths\/RepAdapt_method\/&-genes.depthcol/') > {params.genes_temp}
+    paste results/depths/RepAdapt_method/${{first_sample}}-genes.sorted.tsv $(tail -n +2 {params.samples_list} | sed 's|.*|results/depths/RepAdapt_method/&-genes.depthcol|') > {params.genes_temp}
     cat {params.depth_header} {params.genes_temp} > {output.combined_genes}
 
     # Combine whole-genome depth results:
     while read samp; do 
+      test -s results/depths/RepAdapt_method/${{samp}}-wg.txt
       echo -e "${{samp}}\t$(cat results/depths/RepAdapt_method/${{samp}}-wg.txt)"; 
     done < {params.samples_list} > {output.combined_wg}
     """

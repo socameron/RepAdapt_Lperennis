@@ -184,10 +184,10 @@ rule add_read_groups:
     bam="results/bam_raw/hap{hap}/{batch}_RG/{sample}_hap{hap}_RG.bam"
   params:
     rgid=lambda wildcards: wildcards.sample,
-    rglb=lambda wildcards: f"{wildcards.sample}_LB",
+    rglb=lambda wildcards: f"{extract_sample_prefix(wildcards.sample)}_LB",
     rgpl="ILLUMINA",
     rgpu=lambda wildcards: wildcards.batch,
-    rgsm=lambda wildcards: wildcards.sample,
+    rgsm=lambda wildcards: extract_sample_prefix(wildcards.sample),
     container=CONTAINERS["picard"]
   log:
     "results/logs/add_read_groups/hap{hap}/{batch}/{sample}_hap{hap}_RG.log"
@@ -260,27 +260,27 @@ rule merge_replicates:
 
     HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
     BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+    input_files=( {input:q} )
 
-    echo "Input files: {input}" > {log}
+    echo "Input files: ${{input_files[*]}}" > {log}
+    echo "Input count: ${{#input_files[@]}}" >> {log}
     echo "Output file: {output}" >> {log}
 
-    if [ -z "$(echo {input} | tr -d '[:space:]')" ]; then
+    if [ "${{#input_files[@]}}" -eq 0 ]; then
       echo "No files found for {wildcards.sample_prefix} in hap{wildcards.hap}" >> {log}
       exit 1
-    elif [ $(echo {input} | wc -w) -eq 1 ]; then
+    elif [ "${{#input_files[@]}}" -eq 1 ]; then
       echo "Single file found; copying." >> {log}
-      cp {input} {output}
+      cp "${{input_files[0]}}" {output:q}
     else
       echo "Multiple files found; merging." >> {log}
       apptainer exec --cleanenv \
         -B "$BIND" \
         --pwd "$PWD" \
         {params.container} \
-        samtools merge -f -o {output} {input} \
+        samtools merge -f -o {output:q} "${{input_files[@]}}" \
         2>> {log}
     fi
-
-    rm -f results/bam_raw/hap{wildcards.hap}/merged/*rep2*.bam
     """
 
 
@@ -327,7 +327,6 @@ rule mark_remove_duplicates:
 
 # After downstream analyses (admixture), it appears that LCTGP-19 and SWCP-19 are mislabeled and need to swap names.
 # The first and second raw reads (fastq files) for both SWCP-19 and LCTGP-19 still match. It was just mislabelled at the sequencing step!
-# NOTE: The metadata in the RG group is incorrect still and hasn't been updated!
 rule rename_specific_bam_files:
   input:
     lctgp_bam="results/bam_mkdup/hap{hap}/LCTGP-19_hap{hap}_mkdup.bam",
@@ -338,28 +337,129 @@ rule rename_specific_bam_files:
     checkpoint="results/checkpoints/hap{hap}/rename_specific_files_checkpoint.txt"
   log:
     "results/logs/rename_specific_files/hap{hap}/rename_specific_files.log"
+  params:
+    picard_container=CONTAINERS["picard"],
+    samtools_container=CONTAINERS["samtools"]
   shell:
     """
+    set -euo pipefail
+    mkdir -p "$(dirname {output.checkpoint})" "$(dirname {log})"
+
+    if ! command -v apptainer >/dev/null 2>&1; then
+      module load apptainer/1.3.5
+    fi
+
+    HOST_SCRATCH="$(readlink -f /home/socamero/links/scratch)"
+    BIND="$PWD:$PWD,$HOST_SCRATCH:/links/scratch"
+
+    lctgp_bam="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bam"
+    lctgp_bai="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bai"
+    swcp_bam="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bam"
+    swcp_bai="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bai"
+
     # Temporary files to avoid overwriting
     tmp_lctgp_bam="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_temp.bam"
     tmp_lctgp_bai="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_temp.bai"
     tmp_swcp_bam="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_temp.bam"
     tmp_swcp_bai="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_temp.bai"
+    tmp_lctgp_rg="results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_rgfix.bam"
+    tmp_swcp_rg="results/bam_mkdup/hap{wildcards.hap}/SWCP-19_rgfix.bam"
 
-    # Copy the files to temporary locations
-    cp {input.lctgp_bam} $tmp_lctgp_bam
-    cp {input.lctgp_bai} $tmp_lctgp_bai
-    cp {input.swcp_bam} $tmp_swcp_bam
-    cp {input.swcp_bai} $tmp_swcp_bai
+    get_rg_values() {{
+      local bam="$1"
+      local tag="$2"
+      apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+        samtools view -H "$bam" \
+      | awk -F '\t' -v tag="$tag:" '$1 == "@RG" {{ for (i = 1; i <= NF; i++) if ($i ~ "^" tag) {{ sub("^" tag, "", $i); print $i }} }}' \
+      | sort -u \
+      | paste -sd "," -
+    }}
 
-    # Rename LCTGP-19 to SWCP-19 and vice versa using the temporary files
-    mv $tmp_lctgp_bam results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bam
-    mv $tmp_lctgp_bai results/bam_mkdup/hap{wildcards.hap}/SWCP-19_hap{wildcards.hap}_mkdup.bai
-    mv $tmp_swcp_bam results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bam
-    mv $tmp_swcp_bai results/bam_mkdup/hap{wildcards.hap}/LCTGP-19_hap{wildcards.hap}_mkdup.bai
+    lctgp_rg_ids="$(get_rg_values "$lctgp_bam" ID)"
+    lctgp_rg_sms="$(get_rg_values "$lctgp_bam" SM)"
+    swcp_rg_ids="$(get_rg_values "$swcp_bam" ID)"
+    swcp_rg_sms="$(get_rg_values "$swcp_bam" SM)"
 
-    # Remove the temporary files
-    rm -f $tmp_lctgp_bam $tmp_lctgp_bai $tmp_swcp_bam $tmp_swcp_bai
+    echo "Starting rename_specific_bam_files for hap{wildcards.hap}" > {log}
+    echo "LCTGP-19 RG IDs before: $lctgp_rg_ids" >> {log}
+    echo "LCTGP-19 RG SMs before: $lctgp_rg_sms" >> {log}
+    echo "SWCP-19 RG IDs before: $swcp_rg_ids" >> {log}
+    echo "SWCP-19 RG SMs before: $swcp_rg_sms" >> {log}
+
+    if [[ "$lctgp_rg_ids" == "LCTGP-19" && "$lctgp_rg_sms" == "LCTGP-19" && "$swcp_rg_ids" == "SWCP-19" && "$swcp_rg_sms" == "SWCP-19" ]]; then
+      echo "BAMs already swapped and read groups already corrected; indexing and creating checkpoint." >> {log}
+    else
+      if [[ "$lctgp_rg_sms" == *"SWCP-19"* && "$swcp_rg_sms" == *"LCTGP-19"* ]]; then
+        echo "BAM filenames are already swapped; skipping filename swap and correcting read groups." >> {log}
+      else
+        echo "Swapping LCTGP-19 and SWCP-19 BAM filenames before correcting read groups." >> {log}
+
+        cp "$lctgp_bam" "$tmp_lctgp_bam"
+        cp "$lctgp_bai" "$tmp_lctgp_bai"
+        cp "$swcp_bam" "$tmp_swcp_bam"
+        cp "$swcp_bai" "$tmp_swcp_bai"
+
+        mv "$tmp_lctgp_bam" "$swcp_bam"
+        mv "$tmp_lctgp_bai" "$swcp_bai"
+        mv "$tmp_swcp_bam" "$lctgp_bam"
+        mv "$tmp_swcp_bai" "$lctgp_bai"
+      fi
+
+      # Correct the internal read-group sample names after the file swap.
+      apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.picard_container} \
+        picard AddOrReplaceReadGroups \
+          I="$lctgp_bam" \
+          O="$tmp_lctgp_rg" \
+          RGID=LCTGP-19 \
+          RGLB=LCTGP-19_LB \
+          RGPL=ILLUMINA \
+          RGPU=renamed \
+          RGSM=LCTGP-19 \
+        >> {log} 2>&1
+
+      apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.picard_container} \
+        picard AddOrReplaceReadGroups \
+          I="$swcp_bam" \
+          O="$tmp_swcp_rg" \
+          RGID=SWCP-19 \
+          RGLB=SWCP-19_LB \
+          RGPL=ILLUMINA \
+          RGPU=renamed \
+          RGSM=SWCP-19 \
+        >> {log} 2>&1
+
+      mv "$tmp_lctgp_rg" "$lctgp_bam"
+      mv "$tmp_swcp_rg" "$swcp_bam"
+    fi
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+      samtools index -b \
+        "$lctgp_bam" \
+        "$lctgp_bai" \
+      >> {log} 2>&1
+
+    apptainer exec --cleanenv -B "$BIND" --pwd "$PWD" {params.samtools_container} \
+      samtools index -b \
+        "$swcp_bam" \
+        "$swcp_bai" \
+      >> {log} 2>&1
+
+    rm -f "$tmp_lctgp_bam" "$tmp_lctgp_bai" "$tmp_swcp_bam" "$tmp_swcp_bai" "$tmp_lctgp_rg" "$tmp_swcp_rg"
+
+    final_lctgp_rg_ids="$(get_rg_values "$lctgp_bam" ID)"
+    final_lctgp_rg_sms="$(get_rg_values "$lctgp_bam" SM)"
+    final_swcp_rg_ids="$(get_rg_values "$swcp_bam" ID)"
+    final_swcp_rg_sms="$(get_rg_values "$swcp_bam" SM)"
+
+    echo "LCTGP-19 RG IDs after: $final_lctgp_rg_ids" >> {log}
+    echo "LCTGP-19 RG SMs after: $final_lctgp_rg_sms" >> {log}
+    echo "SWCP-19 RG IDs after: $final_swcp_rg_ids" >> {log}
+    echo "SWCP-19 RG SMs after: $final_swcp_rg_sms" >> {log}
+
+    if [[ "$final_lctgp_rg_ids" != "LCTGP-19" || "$final_lctgp_rg_sms" != "LCTGP-19" || "$final_swcp_rg_ids" != "SWCP-19" || "$final_swcp_rg_sms" != "SWCP-19" ]]; then
+      echo "Read-group validation failed; checkpoint will not be created." >> {log}
+      exit 1
+    fi
 
     # Create a checkpoint file to indicate renaming is complete
     echo "LCTGP-19 and SWCP-19 file names successfully swapped and renamed!" > {output.checkpoint}
